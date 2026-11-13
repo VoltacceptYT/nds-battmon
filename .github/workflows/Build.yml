@@ -8,19 +8,16 @@ jobs:
     container: devkitpro/devkitarm:20240202
     steps:
       - uses: actions/checkout@v4
-      - name: Assemble project from libnds combined template
+      - name: Compile
         run: |
-          git clone https://github.com/devkitPro/nds-examples.git /tmp/ex
-          cd /tmp/ex
-          git checkout "$(git rev-list -n1 --before=2024-02-02 HEAD)"
-          cd "$GITHUB_WORKSPACE"
-          T=$(find /tmp/ex -type d -path "*templates/combined" | head -1)
-          echo "Using template: $T"
-          cp -r "$T" /tmp/proj
-          cp arm9/source/main.c /tmp/proj/arm9/source/main.c
-          cp arm7/source/main.c /tmp/proj/arm7/source/main.c
-          cd /tmp/proj && make
-          cp /tmp/proj/*.nds "$GITHUB_WORKSPACE/battmon.nds"
+          export DEVKITPRO=/opt/devkitpro
+          export DEVKITARM=/opt/devkitpro/devkitARM
+          export PATH=$DEVKITARM/bin:$DEVKITPRO/tools/bin:$PATH
+          L=$DEVKITPRO/libnds
+          ls $L
+          arm-none-eabi-gcc -specs=ds_arm9.specs -mthumb -mthumb-interwork -march=armv5te -mtune=arm946e-s -O2 -DARM9 -I$L/include arm9/source/main.c -L$L/lib -lnds9 -o arm9.elf
+          arm-none-eabi-gcc -specs=ds_arm7.specs -mthumb-interwork -mcpu=arm7tdmi -mtune=arm7tdmi -O2 -DARM7 -I$L/include arm7/source/main.c -L$L/lib -lnds7 -o arm7.elf
+          ndstool -c battmon.nds -7 arm7.elf -9 arm9.elf
       - uses: actions/upload-artifact@v4
         with:
           name: battmon-nds
