@@ -1,11 +1,6 @@
-// BattMon - ARM7 side. Reads the touchscreen controller's VBAT channel.
-// Based on the libnds default ARM7 template (arm7 + arm9 combined project).
 #include <nds.h>
 
 #define FIFO_BATT FIFO_USER_01
-
-// TSC2046-style control byte: start | channel 2 (VBAT) | 12-bit | single-ended | PD=00
-#define TSC_MEASURE_VBAT 0xA4
 
 static u16 readTSC(u8 command) {
     u16 res1, res2;
@@ -26,16 +21,23 @@ static u16 readTSC(u8 command) {
     res2 = REG_SPIDATA;
 
     leaveCriticalSection(oldIME);
-    return ((res1 & 0x7F) << 5) | (res2 >> 3);   // 12-bit result
+    return ((res1 & 0x7F) << 5) | (res2 >> 3);
 }
 
-// ARM9 asks; we reply with raw ADC in low 16 bits, PMIC "battery low" flag in bit 16.
 static void battHandler(u32 value, void *userdata) {
     (void)value; (void)userdata;
-    readTSC(TSC_MEASURE_VBAT);                 // throwaway: let the ADC settle
-    u16 raw = readTSC(TSC_MEASURE_VBAT);
-    u32 low = readPowerManagement(1) & 1;      // PM reg 1 bit 0 = low battery
-    fifoSendValue32(FIFO_BATT, raw | (low << 16));
+    for (int ch = 0; ch < 8; ch++) {
+        u8 base = 0x80 | (ch << 4);
+        readTSC(base | 0x04);
+        u16 se = readTSC(base | 0x04);   // single-ended
+        readTSC(base);
+        u16 df = readTSC(base);          // differential
+        fifoSendValue32(FIFO_BATT, ((u32)ch << 24) | se);
+        fifoSendValue32(FIFO_BATT, ((u32)(8 + ch) << 24) | df);
+    }
+    for (int r = 0; r < 5; r++) {
+        fifoSendValue32(FIFO_BATT, ((u32)(16 + r) << 24) | readPowerManagement(r));
+    }
 }
 
 void VcountHandler(void) { inputGetAndSend(); }
