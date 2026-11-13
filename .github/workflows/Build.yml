@@ -5,14 +5,18 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    # Pinned to an older devkitARM image so libnds is 1.x (the code uses the 1.x FIFO API).
     container: devkitpro/devkitarm:20240202
     steps:
       - uses: actions/checkout@v4
       - name: Assemble project from libnds combined template
         run: |
-          git clone --depth 1 https://github.com/devkitPro/nds-examples.git /tmp/ex
-          cp -r /tmp/ex/templates/combined /tmp/proj
+          git clone https://github.com/devkitPro/nds-examples.git /tmp/ex
+          cd /tmp/ex
+          git checkout "$(git rev-list -n1 --before=2024-02-02 HEAD)"
+          cd "$GITHUB_WORKSPACE"
+          T=$(find /tmp/ex -type d -path "*templates/combined" | head -1)
+          echo "Using template: $T"
+          cp -r "$T" /tmp/proj
           cp arm9/source/main.c /tmp/proj/arm9/source/main.c
           cp arm7/source/main.c /tmp/proj/arm7/source/main.c
           cd /tmp/proj && make
@@ -21,4 +25,3 @@ jobs:
         with:
           name: battmon-nds
           path: battmon.nds
-          
